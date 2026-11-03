@@ -4,7 +4,6 @@ from pygame import Rect, Color, Event
 import math
 import time
 import sys
-np.set_printoptions(threshold=sys.maxsize)
 
 class Game:
     def __init__(self):
@@ -14,17 +13,17 @@ class Game:
         self.game_started = True
         self.game_over = False
 
-        self.trail_board = np.zeros((w,h))
-        self.player_board = np.zeros((w,h))
+        self.trail_board = np.zeros((w,h), dtype=int)
+        self.player_board = np.zeros((w,h), dtype=int)
         self.player_board[84, 40] = 1
         self.player_board[19, 40] = 2
 
         self.player1_direction = np.array([-1, 0], dtype=int)
-        self.player1_position = np.array([84, 40])
+        self.player1_position = np.array([84, 40], dtype=int)
         self.player1_alive = True
 
         self.player2_direction = np.array([1, 0], dtype=int)
-        self.player2_position = np.array([19, 40])
+        self.player2_position = np.array([19, 40], dtype=int)
         self.player2_alive = True
 
     @staticmethod
@@ -33,7 +32,6 @@ class Game:
             return True
         else:
             return False
-
 
     def input_to_array(self, input: Event, player_1: bool):
         array = np.zeros(2, dtype=int)
@@ -112,77 +110,85 @@ class Game:
                 self.winner = 0
             print(self.winner)
 
+def main():
+    np.set_printoptions(threshold=sys.maxsize)
+    #og_w = 104
+    #og_h = 80
 
-#og_w = 104
-#og_h = 80
+    og_w = 104
+    og_h = 80
 
-og_w = 104
-og_h = 80
+    MULT = 10
 
-MULT = 10
+    WIDTH = og_w * MULT
+    HEIGHT = og_h * MULT
 
-WIDTH = og_w * MULT
-HEIGHT = og_h * MULT
+    SPEED = 60
+    SCREEN_FPS = 60
+    BLINK_SPEED = 2
 
-SPEED = 30
-SCREEN_FPS = 60
-BLINK_SPEED = 2
-
-game = Game()
-game.new_game(og_w, og_h)
+    game = Game()
+    game.new_game(og_w, og_h)
 
 
-pygame.init()
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-clock = pygame.time.Clock()
-running = True
-p1_input = np.zeros(2)
-p2_input = np.zeros(2)
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    clock = pygame.time.Clock()
+    running = True
+    p1_input = np.zeros(2)
+    p2_input = np.zeros(2)
 
-frame = 0
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        if event.type == pygame.KEYDOWN:
-            if event.key in [pygame.K_UP, pygame.K_DOWN, pygame.K_RIGHT, pygame.K_LEFT]:
-                p1_input = game.input_to_array(event, True)
-            elif event.key in [pygame.K_w, pygame.K_s, pygame.K_d, pygame.K_a]:
-                p2_input = game.input_to_array(event, False)
-            
-
-    frame += 1
-
-    if frame % (SCREEN_FPS/SPEED) == 0:
-
-        game.game_step(p1_input, p2_input, og_w, og_h)
-        screen.fill(20)
-        for x in range(og_w):
-            for y in range(og_h):
-                new_y = og_h-y
+    frame = 0
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_UP, pygame.K_DOWN, pygame.K_RIGHT, pygame.K_LEFT]:
+                    p1_input = game.input_to_array(event, True)
+                elif event.key in [pygame.K_w, pygame.K_s, pygame.K_d, pygame.K_a]:
+                    p2_input = game.input_to_array(event, False)
                 
-                if game.trail_board[x,y] == 1:
-                    pygame.draw.rect(screen, Color(75,75,255), Rect(x*MULT, new_y*MULT, MULT, MULT))
 
-                if game.trail_board[x,y] == 2:
-                    pygame.draw.rect(screen, Color(255,75,75), Rect(x*MULT, new_y*MULT, MULT, MULT))
+        frame += 1
 
-                if game.player_board[x,y] == 1:
-                    pygame.draw.rect(screen, Color(0,0,255), Rect(x*MULT, new_y*MULT, MULT, MULT))
+        if frame % (SCREEN_FPS/SPEED) == 0:
 
-                if game.player_board[x,y] == 2:
-                    pygame.draw.rect(screen, Color(255,0,0), Rect(x*MULT, new_y*MULT, MULT, MULT))
+            game.game_step(p1_input, p2_input, og_w, og_h)
+            screen.fill(20)
+            for x in range(og_w):
+                for y in range(og_h):
+                    new_y = og_h-y
+                    
+                    if game.trail_board[x,y] == 1:
+                        pygame.draw.rect(screen, Color(75,75,255), Rect(x*MULT, new_y*MULT, MULT, MULT))
 
-        if game.game_over:
-            #blink_period = SCREEN_FPS/BLINK_SPEED
-            time.sleep(5)
+                    if game.trail_board[x,y] == 2:
+                        pygame.draw.rect(screen, Color(255,75,75), Rect(x*MULT, new_y*MULT, MULT, MULT))
 
-            
-            pygame.quit()
-            sys.exit()
+                    if game.player_board[x,y] == 1:
+                        pygame.draw.rect(screen, Color(0,0,255), Rect(x*MULT, new_y*MULT, MULT, MULT))
+
+                    if game.player_board[x,y] == 2:
+                        pygame.draw.rect(screen, Color(255,0,0), Rect(x*MULT, new_y*MULT, MULT, MULT))
+
+            if game.game_over:
+                #blink_period = SCREEN_FPS/BLINK_SPEED
+                time.sleep(5)
+
+                
+                pygame.quit()
+                sys.exit()
 
 
-    pygame.display.flip()
-    #print(clock.get_fps())
-    clock.tick(SCREEN_FPS)  
-pygame.quit()
+        pygame.display.flip()
+        #print(clock.get_fps())
+        clock.tick(SCREEN_FPS)  
+    pygame.quit()
+
+
+
+
+
+if __name__ == "__main__":
+    main()
