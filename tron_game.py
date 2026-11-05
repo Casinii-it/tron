@@ -4,27 +4,34 @@ from pygame import Rect, Color, Event
 import math
 import time
 import sys
+import torch
 
 class Game:
     def __init__(self):
         self.game_started = False
 
-    def new_game(self, w, h):
+    def new_game(self, w, h, solo=False):
         self.game_started = True
         self.game_over = False
+        self.game_length = 0
+        self.width = w
+        self.height = h
+        self.solo = solo
 
         self.trail_board = np.zeros((w,h), dtype=int)
         self.player_board = np.zeros((w,h), dtype=int)
         self.player_board[84, 40] = 1
-        self.player_board[19, 40] = 2
+        if not solo:
+            self.player_board[19, 40] = 2
 
         self.player1_direction = np.array([-1, 0], dtype=int)
         self.player1_position = np.array([84, 40], dtype=int)
         self.player1_alive = True
 
-        self.player2_direction = np.array([1, 0], dtype=int)
-        self.player2_position = np.array([19, 40], dtype=int)
-        self.player2_alive = True
+        if not solo:
+            self.player2_direction = np.array([1, 0], dtype=int)
+            self.player2_position = np.array([19, 40], dtype=int)
+            self.player2_alive = True
 
     @staticmethod
     def out_of_bounds(array: np.ndarray, w, h):
@@ -64,11 +71,14 @@ class Game:
         if not self.game_started:
             raise RuntimeError("Start the game with `new_game()` first!")
 
+        self.game_length += 1
 
         if p1_input.any() and (p1_input + self.player1_direction).any():
             self.player1_direction = p1_input
-        if p2_input.any() and (p2_input + self.player2_direction).any():
-            self.player2_direction = p2_input
+
+        if not self.solo:
+            if p2_input.any() and (p2_input + self.player2_direction).any():
+                self.player2_direction = p2_input
 
 
         p1_newpos = self.player1_position + self.player1_direction
@@ -83,32 +93,41 @@ class Game:
             self.player_board[tuple(p1_newpos)] = 1
             self.player1_position = p1_newpos
 
+        if not self.solo:
+            p2_newpos = self.player2_position + self.player2_direction
 
-        p2_newpos = self.player2_position + self.player2_direction
+            if self.out_of_bounds(p2_newpos, w, h): 
+                self.player2_alive = False
+            elif self.trail_board[tuple(p2_newpos)].any() or self.player_board[tuple(p2_newpos)] == 1:
+                self.player2_alive = False
+            else:
+                self.trail_board[tuple(self.player2_position)] = 2
+                self.player_board[tuple(self.player2_position)] = 0
+                self.player_board[tuple(p2_newpos)] = 2
+                self.player2_position = p2_newpos
 
-        if self.out_of_bounds(p2_newpos, w, h): 
-            self.player2_alive = False
-        elif self.trail_board[tuple(p2_newpos)].any() or self.player_board[tuple(p2_newpos)] == 1:
-            self.player2_alive = False
+        if not self.solo:
+            if not self.player1_alive or not self.player2_alive:
+                self.game_over = True
+
+                if self.player1_alive and not self.player2_alive:
+                    self.winner = 1
+
+                if not self.player1_alive and self.player2_alive:
+                    self.winner = 2
+
+                if not self.player1_alive and not self.player2_alive:
+                    self.winner = 0
+                print(self.winner)
         else:
-            self.trail_board[tuple(self.player2_position)] = 2
-            self.player_board[tuple(self.player2_position)] = 0
-            self.player_board[tuple(p2_newpos)] = 2
-            self.player2_position = p2_newpos
+            if not self.player1_alive:
+                self.game_over = True
+
+    def render_game(self, game: Game):
+        pygame.init()
+        screen = pygame.display.set_mode((self.width, self.height))
 
 
-        if not self.player1_alive or not self.player2_alive:
-            self.game_over = True
-
-            if self.player1_alive and not self.player2_alive:
-                self.winner = 1
-
-            if not self.player1_alive and self.player2_alive:
-                self.winner = 2
-
-            if not self.player1_alive and not self.player2_alive:
-                self.winner = 0
-            print(self.winner)
 
 def main():
     np.set_printoptions(threshold=sys.maxsize)
@@ -123,7 +142,7 @@ def main():
     WIDTH = og_w * MULT
     HEIGHT = og_h * MULT
 
-    SPEED = 60
+    SPEED = 20
     SCREEN_FPS = 60
     BLINK_SPEED = 2
 
@@ -137,7 +156,8 @@ def main():
     running = True
     p1_input = np.zeros(2)
     p2_input = np.zeros(2)
-
+    
+    
     frame = 0
     while running:
         for event in pygame.event.get():
@@ -148,7 +168,9 @@ def main():
                     p1_input = game.input_to_array(event, True)
                 elif event.key in [pygame.K_w, pygame.K_s, pygame.K_d, pygame.K_a]:
                     p2_input = game.input_to_array(event, False)
-                
+
+        if False:
+            p2_input, _ = 0 ############## AIIIIIIIIII
 
         frame += 1
 
@@ -158,7 +180,7 @@ def main():
             screen.fill(20)
             for x in range(og_w):
                 for y in range(og_h):
-                    new_y = og_h-y
+                    new_y = og_h-y-1
                     
                     if game.trail_board[x,y] == 1:
                         pygame.draw.rect(screen, Color(75,75,255), Rect(x*MULT, new_y*MULT, MULT, MULT))
