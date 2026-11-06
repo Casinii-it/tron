@@ -5,9 +5,16 @@ from typing import Optional
 import tron_game
 from copy import deepcopy
 from stable_baselines3 import A2C
+from stable_baselines3 import PPO
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import sys
 import pygame
 from pygame import Color, Rect
+import torch as th
+import torch.nn as nn
+from collections import defaultdict
+import torch.nn.functional as F
+
 
 class CustomEnv(gym.Env):
     metadata = {"render_modes": ["human"], "render_fps": 30}
@@ -15,6 +22,8 @@ class CustomEnv(gym.Env):
     def __init__(self, render_mode=None, width = 104, height = 80):
         self.width = width
         self.height = height
+
+        self.player = 1
         
         pygame.init()
         self.MULT = 5
@@ -50,7 +59,10 @@ class CustomEnv(gym.Env):
 
         terminated = self.game.game_over
         truncated = False
-        reward = -10 if terminated else 0.01
+        reward = -10 if terminated else 0.001
+        if terminated:
+            if self.game.query_needless_death(self.player):
+                reward = -100
         observation = self._get_obs()
         info = self._get_info()
 
@@ -101,7 +113,7 @@ class CustomEnv(gym.Env):
     def close(self):        
         pygame.quit()
 
-    def _get_obs(self, player:int=2):
+    def _get_obs(self, player:int=1):
         observations = {
             "trail board": self.game.trail_board,
             "player board": self.game.player_board,
@@ -114,7 +126,52 @@ class CustomEnv(gym.Env):
     def _get_info(self):
         return {}
 
-class CustomCNN
+    
+class CustomCNN(BaseFeaturesExtractor):
+    """
+    :param observation_space: (gym.Space)
+    :param features_dim: (int) Number of features extracted.
+        This corresponds to the number of unit for the last layer.
+    """
+
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 256):
+        super().__init__(observation_space, features_dim)
+        n_input_channels = observation_space.shape[0]
+        self.cnn = nn.Sequential(
+        nn.Conv2d(n_input_channels, 16, 3, padding=1),
+        nn.MaxPool2d(2, 2),
+        nn.ReLU(),
+
+        nn.Conv2d(16, 64, 3, padding=1),
+        nn.MaxPool2d(2, 2),
+        nn.ReLU(),
+
+        nn.Conv2d(64, 128, 3, padding=1),
+        nn.MaxPool2d(2, 2),
+        nn.ReLU(),
+
+        nn.Flatten(),
+        nn.Linear(128 * 10 * 13, 256),
+        nn.ReLU(),
+
+        nn.Linear(256, 128),
+        nn.ReLU(),
+        
+        nn.Linear(128, 4),
+        )
+        
+        
+        with th.no_grad():
+            n_flatten = self.cnn(
+                th.as_tensor(observation_space.sample()[None]).float()
+            ).shape[1]
+        
+
+        self.linear = nn.Sequential(nn.Linear(n_flatten, features_dim), nn.ReLU())
+        
+
+    def forward(self, observations: th.Tensor) -> th.Tensor:
+        return self.linear(self.cnn(observations))
 
 def action_to_direction(num: int):
     match num:
@@ -125,17 +182,13 @@ def action_to_direction(num: int):
 
 
 
-from collections import defaultdict
-import gymnasium as gym
-import numpy as np
-
 
 gym.register(
     id="gymnasium_env/Tron",
     entry_point=CustomEnv
 )
-env = gym.make("gymnasium_env/Tron")#, render_mode="human")
 
+env = gym.make("gymnasium_env/Tron")#, render_mode="human")
 
 try:
     check_env(env)
@@ -145,17 +198,33 @@ except Exception as e:
     sys.exit()
 
 
+policy_kwargs = dict(
+    features_extractor_class = CustomCNN,
+    features_extractor_kwargs = dict(features_dim=128)
+)
+
+
 try:
     model = A2C.load("model.heehee", env)
     print("Model loaded successfully")
 except:
-    model = A2C("MultiInputPolicy", env, verbose=1)
+    model = A2C("MultiInputPolicy", env, policy_kwargs=policy_kwargs, verbose=1)
     print("Model created successfully")
 
-while 1:
-    model.learn(total_timesteps=5_000, progress_bar=True)
-    model.save("model.heehee")
+print(model.policy)
 
+try:
+    while 1:
+        model.learn(total_timesteps=10_000, progress_bar=True)
+        model.save("model.heehee")
+except KeyboardInterrupt:
+    model.save("model.heehee")
+except Exception as e:
+    print(e)
+
+
+
+"""wont run"""
 vec_env = model.get_env()
 obs = vec_env.reset()
 

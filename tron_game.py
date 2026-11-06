@@ -123,6 +123,29 @@ class Game:
             if not self.player1_alive:
                 self.game_over = True
 
+    def query_needless_death(self, player):
+        if not self.game_over:
+            return None
+
+        match player:
+            case 1: 
+                position = self.player1_position
+                dir = self.player1_direction
+            case 2: 
+                position = self.player2_position
+                dir = self.player2_direction
+
+        side1 = position + np.array([dir[1], -dir[0]])
+        side2 = position + np.array([-dir[1], dir[0]])
+
+        for side in [side1, side2]:
+            if self.out_of_bounds(side, self.width, self.height):
+                continue
+            if not self.trail_board[side].any() and not self.player_board[side].any():
+                return True
+
+        return False
+
     def render_game(self, game: Game):
         pygame.init()
         screen = pygame.display.set_mode((self.width, self.height))
